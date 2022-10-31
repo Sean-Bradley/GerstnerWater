@@ -22,18 +22,18 @@ document.addEventListener("keyup", onDocumentKey, false);
 const waves = [
   {
     direction: 45,
-    steepness: 0.5,
-    wavelength: 48,
+    steepness: 0.1,
+    wavelength: 7,
   },
   {
     direction: 306,
-    steepness: 0.3,
-    wavelength: 49,
+    steepness: 0.2,
+    wavelength: 32,
   },
   {
     direction: 196,
-    steepness: 0.2,
-    wavelength: 48,
+    steepness: 0.3,
+    wavelength: 59,
   },
 ];
 
@@ -178,7 +178,7 @@ world.addBody(heliBody);
 const rotorGeometry = new THREE.BoxGeometry(0.1, 0.01, 5);
 const rotorMesh = new THREE.Mesh(rotorGeometry, material);
 rotorMesh.position.x = 0;
-rotorMesh.position.y = 1000;
+rotorMesh.position.y = 100;
 rotorMesh.position.z = 0;
 scene.add(rotorMesh);
 const rotorShape = new CANNON.Sphere(0.1);
@@ -200,25 +200,9 @@ world.addConstraint(rotorConstraint);
 
 let waterCompiled = false;
 
-//const waterGeometry = new THREE.PlaneGeometry(1024, 1024, 512, 512)
-//const waterGeometry = new THREE.PlaneGeometry(512, 512, 512, 512)
-//waterGeometry.rotateX(-Math.PI / 2)
-
-// const geometries = []
-// let start = 1024
-// for (let i = start; i > 1; i = i / 2) {
-//     const g = new THREE.PlaneGeometry(i, i, 16, 16)
-//     geometries.push(g)
-
-// }
-
-// const geometry = mergeBufferGeometries(geometries);
-
-//const geometry = new THREE.RingGeometry(0, 100, 32, 32);
-
 const geometry = new THREE.BufferGeometry();
 
-const thetaSegments = 64;
+const thetaSegments = 128;
 const phiSegments = 1024;
 const thetaStart = 0;
 const thetaLength = Math.PI * 2;
