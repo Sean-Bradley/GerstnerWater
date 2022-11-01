@@ -323,7 +323,16 @@ water.material.onBeforeCompile = function (shader) {
                 uniform float offsetX;
                 uniform float offsetZ;
 
-                vec3 GerstnerWave (vec4 wave, vec3 p) {
+                varying vec3 lastPosition;
+                varying vec3 vNormal;
+
+                struct WaveInfo {
+                  vec3 position;
+                  vec3 tangent;
+                  vec3 binormal;
+                };
+
+                WaveInfo GerstnerWave (vec4 wave, vec3 p, vec3 t, vec3 b) {
                     float steepness = wave.z;
                     float wavelength = wave.w;
                     float k = 2.0 * PI / wavelength;
@@ -332,10 +341,22 @@ water.material.onBeforeCompile = function (shader) {
                     float f = k * (dot(d, vec2(p.x, p.y)) - c * time);
                     float a = steepness / k;
 
-                    return vec3(
+                    t.x += -d.x * d.x * (steepness * sin(f));
+                    t.y += d.x * (steepness * cos(f));
+                    t.z += -d.x * d.y * (steepness * sin(f));
+
+                    b.x += -d.x * d.y * (steepness * sin(f));
+                    b.y += d.y * (steepness * cos(f));
+                    b.z += -d.y * d.y * (steepness * sin(f));
+
+                    return WaveInfo(
+                      vec3(
                         d.x * (a * cos(f)),
                         d.y * (a * cos(f)),
                         a * sin(f)
+                      ),
+                      t,
+                      b
                     );
                 }
 
@@ -352,13 +373,28 @@ water.material.onBeforeCompile = function (shader) {
                     vec3 tangent = vec3(1, 0, 0);
                     vec3 binormal = vec3(0, 0, 1);
                     vec3 p = gridPoint;
-                    gridPoint.x += offsetX;//*2.0;
-                    gridPoint.y -= offsetZ;//*2.0;
-                    p += GerstnerWave(waveA, gridPoint);
-                    p += GerstnerWave(waveB, gridPoint);
-                    p += GerstnerWave(waveC, gridPoint);
-                    
+                    vec3 t = tangent;
+                    vec3 b = binormal;
+                    gridPoint.x += offsetX;
+                    gridPoint.y -= offsetZ;
+                    WaveInfo wi = GerstnerWave(waveA, gridPoint, tangent, binormal);
+                    p += wi.position;
+                    t += wi.tangent;
+                    b += wi.binormal;
+                    wi = GerstnerWave(waveB, gridPoint, tangent, binormal);
+                    p += wi.position;
+                    t += wi.tangent;
+                    b += wi.binormal;
+                    wi = GerstnerWave(waveC, gridPoint, tangent, binormal);        
+                    p += wi.position;
+                    t += wi.tangent;
+                    b += wi.binormal;
+
+                    vNormal = normalize(cross(t, b));
+
                     gl_Position = projectionMatrix * modelViewMatrix * vec4( p.x, p.y, p.z, 1.0);
+                    
+                    
 
                     #include <beginnormal_vertex>
                     #include <defaultnormal_vertex>
@@ -366,82 +402,89 @@ water.material.onBeforeCompile = function (shader) {
                     #include <fog_vertex>
                     #include <shadowmap_vertex>
                 }`;
-  shader.fragmentShader = `
-                uniform sampler2D mirrorSampler;
-                uniform float alpha;
-                uniform float time;
-                uniform float size;
-                uniform float distortionScale;
-                uniform sampler2D normalSampler;
-                uniform vec3 sunColor;
-                uniform vec3 sunDirection;
-                uniform vec3 eye;
-                uniform vec3 waterColor;
+  // shader.fragmentShader = `
+  //               uniform sampler2D mirrorSampler;
+  //               uniform float alpha;
+  //               uniform float time;
+  //               uniform float size;
+  //               uniform float distortionScale;
+  //               uniform sampler2D normalSampler;
+  //               uniform vec3 sunColor;
+  //               uniform vec3 sunDirection;
+  //               uniform vec3 eye;
+  //               uniform vec3 waterColor;
 
-                varying vec4 mirrorCoord;
-                varying vec4 worldPosition;
+  //               varying vec4 mirrorCoord;
+  //               varying vec4 worldPosition;
 
-                uniform float offsetX;
-                uniform float offsetZ;
+  //               uniform float offsetX;
+  //               uniform float offsetZ;
 
-                vec4 getNoise( vec2 uv ) {
-                    vec2 uv0 = ( uv / 103.0 ) + vec2(time / 17.0, time / 29.0);
-                    vec2 uv1 = uv / 107.0-vec2( time / -19.0, time / 31.0 );
-                    vec2 uv2 = uv / vec2( 8907.0, 9803.0 ) + vec2( time / 101.0, time / 97.0 );
-                    vec2 uv3 = uv / vec2( 1091.0, 1027.0 ) - vec2( time / 109.0, time / -113.0 );
-                    vec4 noise = texture2D( normalSampler, uv0 ) +
-                        texture2D( normalSampler, uv1 ) +
-                        texture2D( normalSampler, uv2 ) +
-                        texture2D( normalSampler, uv3 );
-                    return noise * 0.5 - 1.0;
-                }
+  //               varying vec3 vNormal;
 
-                void sunLight( const vec3 surfaceNormal, const vec3 eyeDirection, float shiny, float spec, float diffuse, inout vec3 diffuseColor, inout vec3 specularColor ) {
-                    vec3 reflection = normalize( reflect( -sunDirection, surfaceNormal ) );
-                    float direction = max( 0.0, dot( eyeDirection, reflection ) );
-                    specularColor += pow( direction, shiny ) * sunColor * spec;
-                    diffuseColor += max( dot( sunDirection, surfaceNormal ), 0.0 ) * sunColor * diffuse;
-                }
+  //               vec4 getNoise( vec2 uv ) {
+  //                   vec2 uv0 = ( uv / 103.0 ) + vec2(time / 17.0, time / 29.0);
+  //                   vec2 uv1 = uv / 107.0-vec2( time / -19.0, time / 31.0 );
+  //                   vec2 uv2 = uv / vec2( 8907.0, 9803.0 ) + vec2( time / 101.0, time / 97.0 );
+  //                   vec2 uv3 = uv / vec2( 1091.0, 1027.0 ) - vec2( time / 109.0, time / -113.0 );
+  //                   vec4 noise = texture2D( normalSampler, uv0 ) +
+  //                       texture2D( normalSampler, uv1 ) +
+  //                       texture2D( normalSampler, uv2 ) +
+  //                       texture2D( normalSampler, uv3 );
+  //                   return noise * 0.5 - 1.0;
+  //               }
 
-                #include <common>
-                #include <packing>
-                #include <bsdfs>
-                #include <fog_pars_fragment>
-                #include <logdepthbuf_pars_fragment>
-                #include <lights_pars_begin>
-                #include <shadowmap_pars_fragment>
-                #include <shadowmask_pars_fragment>
+  //               void sunLight( const vec3 surfaceNormal, const vec3 eyeDirection, float shiny, float spec, float diffuse, inout vec3 diffuseColor, inout vec3 specularColor ) {
+  //                   vec3 reflection = normalize( reflect( -sunDirection, surfaceNormal ) );
+  //                   float direction = max( 0.0, dot( eyeDirection, reflection ) );
+  //                   specularColor += pow( direction, shiny ) * sunColor * spec;
+  //                   diffuseColor += max( dot( sunDirection, surfaceNormal ), 0.0 ) * sunColor * diffuse;
+  //               }             
 
-                void main() {
+  //               #include <common>
+  //               #include <packing>
+  //               #include <bsdfs>
+  //               #include <fog_pars_fragment>
+  //               #include <logdepthbuf_pars_fragment>
+  //               #include <lights_pars_begin>
+  //               #include <shadowmap_pars_fragment>
+  //               #include <shadowmask_pars_fragment>
 
-                    #include <logdepthbuf_fragment>
+  //               void main() {
 
-                    vec4 noise = getNoise( (worldPosition.xz) + vec2(offsetX/12.25,offsetZ/12.25) * size );
-                    vec3 surfaceNormal = normalize( noise.xzy * vec3( 1.5, 1.0, 1.5 ) );
+  //                   #include <logdepthbuf_fragment>
 
-                    vec3 diffuseLight = vec3(0.0);
-                    vec3 specularLight = vec3(0.0);
+  //                   vec4 noise = getNoise( (worldPosition.xz) + vec2(offsetX/12.5,offsetZ/12.5) * size );
+  //                   vec3 surfaceNormal = normalize( noise.xzy * vec3( 1.5, 1.0, 1.5 ) );
 
-                    vec3 worldToEye = eye-worldPosition.xyz;
-                    vec3 eyeDirection = normalize( worldToEye );
-                    sunLight( surfaceNormal, eyeDirection, 100.0, 2.0, 0.5, diffuseLight, specularLight );
+  //                   vec3 diffuseLight = vec3(0.0);
+  //                   vec3 specularLight = vec3(0.0);
 
-                    float distance = length(worldToEye);
+  //                   vec3 worldToEye = eye-worldPosition.xyz;
+  //                   vec3 eyeDirection = normalize( worldToEye );
+  //                   sunLight( surfaceNormal, eyeDirection, 100.0, 2.0, 0.5, diffuseLight, specularLight );
 
-                    vec2 distortion = surfaceNormal.xz * ( 0.001 + 1.0 / distance ) * distortionScale;
-                    vec3 reflectionSample = vec3( texture2D( mirrorSampler, mirrorCoord.xy / mirrorCoord.w + distortion ) );
+  //                   float distance = length(worldToEye);
 
-                    float theta = max( dot( eyeDirection, surfaceNormal ), 0.0 );
-                    float rf0 = 0.3;
-                    float reflectance = rf0 + ( 1.0 - rf0 ) * pow( ( 1.0 - theta ), 5.0 );
-                    vec3 scatter = max( 0.0, dot( surfaceNormal, eyeDirection ) ) * waterColor;
-                    vec3 albedo = mix( ( sunColor * diffuseLight * 0.3 + scatter ) * getShadowMask(), ( vec3( 0.1 ) + reflectionSample * 0.9 + reflectionSample * specularLight ), reflectance);
-                    vec3 outgoingLight = albedo;
-                    gl_FragColor = vec4( outgoingLight, alpha );
+  //                   vec2 distortion = surfaceNormal.xz * ( 0.001 + 1.0 / distance ) * distortionScale;
+  //                   vec3 reflectionSample = vec3( texture2D( mirrorSampler, mirrorCoord.xy / mirrorCoord.w + distortion ) );
 
-                    #include <tonemapping_fragment>
-                    #include <fog_fragment>
-                }`;
+  //                   float theta = max( dot( eyeDirection, surfaceNormal ), 0.0 );
+  //                   float rf0 = 0.3;
+  //                   float reflectance = rf0 + ( 1.0 - rf0 ) * pow( ( 1.0 - theta ), 5.0 );
+  //                   vec3 scatter = max( 0.0, dot( surfaceNormal, eyeDirection ) ) * waterColor;
+  //                   vec3 albedo = mix( ( sunColor * diffuseLight * 0.3 + scatter ) , ( vec3( 0.1 ) + reflectionSample * 0.9 + reflectionSample * specularLight ), reflectance);
+                    
+  //                   float whiteWash = acos(dot( surfaceNormal, vNormal ));
+  //                   //vec3 outgoingLight = mix(albedo, vec3( 1, 1, 1 ), whiteWash);
+  //                   vec3 outgoingLight = albedo;
+  //                   gl_FragColor = vec4( outgoingLight, alpha );
+
+  //                   //gl_FragColor = vec4( vNormal, 1.0 );
+
+  //                   #include <tonemapping_fragment>
+  //                   #include <fog_fragment>
+  //               }`;
   shader.uniforms.size.value = 10.0;
   waterCompiled = true;
 };
