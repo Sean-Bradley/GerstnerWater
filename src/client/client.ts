@@ -253,6 +253,9 @@ geometry.setAttribute(
 geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
 geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
 
+// geometry.computeBoundingBox();
+// console.log(geometry)
+
 // const m = new THREE.Mesh(geometry,new THREE.MeshNormalMaterial)
 // m.rotation.x = -Math.PI / 2
 // scene.add(m)
